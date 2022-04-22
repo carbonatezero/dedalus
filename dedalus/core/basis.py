@@ -550,7 +550,7 @@ class Jacobi(IntervalBasis, metaclass=CachedClass):
         Nmat = 3*((N+1)//2) + min((N+1)//2, (da+db+1)//2)
         J = arg_basis.Jacobi_matrix(size=Nmat)
         A, B = clenshaw.jacobi_recursion(Nmat, a_ncc, b_ncc, J)
-        f0 = dedalus_sphere.jacobi.polynomials(1, a_ncc, b_ncc, 1)[0] * sparse.identity(Nmat)
+        f0 = dedalus_sphere.jacobi.polynomials(1, a_ncc, b_ncc, 1)[0].astype(np.float64) * sparse.identity(Nmat)
         matrix = clenshaw.matrix_clenshaw(coeffs.ravel(), A, B, f0, cutoff=cutoff)
         convert = jacobi.conversion_matrix(Nmat, arg_basis.a, arg_basis.b, out_basis.a, out_basis.b)
         matrix = convert @ matrix
@@ -2040,7 +2040,7 @@ class AnnulusBasis(PolarBasis):
         Q0 = dedalus_sphere.jacobi.polynomials(N, self.alpha[0], self.alpha[1], z0)
         Q_proj = dedalus_sphere.jacobi.polynomials(N, self.alpha[0], self.alpha[1], z_proj)
         normalization = self.dR/2
-        return normalization * ( (Q0 @ weights0).T ) @ (weights_proj*Q_proj)
+        return (normalization * ( (Q0 @ weights0).T ) @ (weights_proj*Q_proj)).astype(np.float64)
 
     def global_radius_weights(self, scale=None):
         if scale == None: scale = 1
@@ -2059,7 +2059,7 @@ class AnnulusBasis(PolarBasis):
     def constant_mode_value(self):
         # Note the zeroth mode is constant only for k=0
         Q0 = dedalus_sphere.jacobi.polynomials(1, self.alpha[0], self.alpha[1], np.array([0.0]))
-        return Q0[0,0]
+        return np.float64(Q0[0,0])
 
     def _new_k(self, k):
         return AnnulusBasis(self.coordsystem, self.shape, radii = self.radii, k=k, alpha=self.alpha, dealias=self.dealias, dtype=self.dtype,
@@ -2137,7 +2137,7 @@ class AnnulusBasis(PolarBasis):
         a = self.alpha[0] + self.k
         b = self.alpha[1] + self.k
         radial_factor = (self.dR/position)**(self.k)
-        return radial_factor*dedalus_sphere.jacobi.polynomials(self.n_size(0), a, b, native_position)
+        return radial_factor*dedalus_sphere.jacobi.polynomials(self.n_size(0), a, b, native_position).astype(np.float64)
 
     @CachedMethod
     def operator_matrix(self,op,m,spintotal, size=None):
@@ -2188,7 +2188,7 @@ class AnnulusBasis(PolarBasis):
         Nmat = 3*((N0+1)//2) + self.k
         J = arg_basis.operator_matrix('Z', m, spintotal_arg, size=Nmat)
         A, B = clenshaw.jacobi_recursion(Nmat, a_ncc, b_ncc, J)
-        f0 = dedalus_sphere.jacobi.polynomials(1, a_ncc, b_ncc, 1)[0] * sparse.identity(Nmat)
+        f0 = dedalus_sphere.jacobi.polynomials(1, a_ncc, b_ncc, 1)[0].astype(np.float64) * sparse.identity(Nmat)
         # Conversions to account for radial prefactors
         prefactor = arg_basis.jacobi_conversion(m, dk=self.k, size=Nmat)
         if self.dtype == np.float64:
@@ -2299,7 +2299,7 @@ class DiskBasis(PolarBasis, metaclass=CachedClass):
     @CachedAttribute
     def constant_mode_value(self):
         Qk = dedalus_sphere.zernike.polynomials(2, 1, self.alpha+self.k, 0, np.array([0]))
-        return Qk[0]
+        return np.float64(Qk[0])
 
     def _new_k(self, k):
         return DiskBasis(self.coordsystem, self.shape, radius = self.radius, k=k, alpha=self.alpha, dealias=self.dealias, dtype=self.dtype,
@@ -2399,7 +2399,7 @@ class DiskBasis(PolarBasis, metaclass=CachedClass):
     def interpolation(self, m, spintotal, position):
         native_position = self.radial_COV.native_coord(position)
         native_z = 2*native_position**2 - 1
-        return dedalus_sphere.zernike.polynomials(2, self.n_size(m), self.alpha + self.k, np.abs(m + spintotal), native_z)
+        return dedalus_sphere.zernike.polynomials(2, self.n_size(m), self.alpha + self.k, np.abs(m + spintotal), native_z).astype(np.float64)
 
     @CachedMethod
     def radius_multiplication_matrix(self, m, spintotal, order, d):
@@ -2436,7 +2436,7 @@ class DiskBasis(PolarBasis, metaclass=CachedClass):
             J = arg_basis.operator_matrix('Z', m, spintotal_arg)
             A, B = clenshaw.jacobi_recursion(N, a_ncc, b_ncc, J)
             # assuming that we're doing ball for now...
-            f0 = dedalus_sphere.zernike.polynomials(2, 1, a_ncc, b_ncc, 1)[0] * sparse.identity(N)
+            f0 = dedalus_sphere.zernike.polynomials(2, 1, a_ncc, b_ncc, 1)[0].astype(np.float64) * sparse.identity(N)
             prefactor = arg_basis.radius_multiplication_matrix(m, spintotal_arg, diff_regtotal, d)
             if self.dtype == np.float64:
                 coeffs_filter = coeffs.ravel()[:2*N]
@@ -2869,7 +2869,7 @@ class SphereBasis(SpinBasis, metaclass=CachedClass):
     def _native_colatitude_grid(self, scale):
         N = int(np.ceil(scale * self.shape[1]))
         cos_theta, weights = dedalus_sphere.sphere.quadrature(Lmax=N-1)
-        theta = np.arccos(cos_theta).astype(np.float64)
+        theta = np.arccos(cos_theta.astype(np.float64)) # TODO: xprec doesn't yet support arccos
         return theta
 
     def global_colatitude_weights(self, scale=None):
@@ -3529,13 +3529,13 @@ class ShellRadialBasis(RegularityBasis, metaclass=CachedClass):
         Q0 = dedalus_sphere.jacobi.polynomials(N, self.alpha[0], self.alpha[1], z0)
         Q_proj = dedalus_sphere.jacobi.polynomials(N, self.alpha[0], self.alpha[1], z_proj)
         normalization = self.dR/2
-        return normalization * ( (Q0 @ weights0).T ) @ (weights_proj*Q_proj)
+        return (normalization * ( (Q0 @ weights0).T ) @ (weights_proj*Q_proj)).astype(np.float64)
 
     @CachedAttribute
     def constant_mode_value(self):
         # Note the zeroth mode is constant only for k=0
         Q0 = dedalus_sphere.jacobi.polynomials(1, self.alpha[0], self.alpha[1], np.array([0.0]))
-        return Q0[0,0]
+        return np.float64(Q0[0,0])
 
     @CachedMethod
     def radial_transform_factor(self, scale, data_axis, dk):
@@ -3548,7 +3548,7 @@ class ShellRadialBasis(RegularityBasis, metaclass=CachedClass):
         a = self.alpha[0] + self.k
         b = self.alpha[1] + self.k
         radial_factor = (self.dR/position)**(self.k)
-        return radial_factor*dedalus_sphere.jacobi.polynomials(self.n_size(0), a, b, native_position)
+        return radial_factor*dedalus_sphere.jacobi.polynomials(self.n_size(0), a, b, native_position).astype(np.float64)
 
     @CachedMethod
     def transform_plan(self, grid_size, k):
@@ -3636,7 +3636,7 @@ class ShellRadialBasis(RegularityBasis, metaclass=CachedClass):
         Nmat = 3*((N0+1)//2) + self.k
         J = arg_radial_basis.operator_matrix('Z', ell, regtotal_arg, size=Nmat)
         A, B = clenshaw.jacobi_recursion(Nmat, a_ncc, b_ncc, J)
-        f0 = dedalus_sphere.jacobi.polynomials(1, a_ncc, b_ncc, 1)[0] * sparse.identity(Nmat)
+        f0 = dedalus_sphere.jacobi.polynomials(1, a_ncc, b_ncc, 1)[0].astype(np.float64) * sparse.identity(Nmat)
         # Conversions to account for radial prefactors
         prefactor = arg_radial_basis.jacobi_conversion(ell, dk=self.k, size=Nmat)
         if self.dtype == np.float64:
@@ -3740,18 +3740,18 @@ class BallRadialBasis(RegularityBasis, metaclass=CachedClass):
     def _radius_weights(self, scale):
         N = int(np.ceil(scale * self.shape[2]))
         z, weights = dedalus_sphere.zernike.quadrature(3, N, k=self.alpha)
-        return weights
+        return weights.astype(np.float64)
 
     @CachedAttribute
     def constant_mode_value(self):
         Qk = dedalus_sphere.zernike.polynomials(3, 1, self.alpha+self.k, 0, np.array([0]))
-        return Qk[0]
+        return np.float64(Qk[0])
 
     @CachedMethod
     def interpolation(self, ell, regtotal, position):
         native_position = self.radial_COV.native_coord(position)
         native_z = 2*native_position**2 - 1
-        return dedalus_sphere.zernike.polynomials(3, self.n_size(ell), self.alpha + self.k, ell + regtotal, native_z)
+        return dedalus_sphere.zernike.polynomials(3, self.n_size(ell), self.alpha + self.k, ell + regtotal, native_z).astype(np.float64)
 
     @CachedMethod
     def transform_plan(self, grid_shape, regindex, axis, regtotal, k, alpha):
@@ -3855,7 +3855,7 @@ class BallRadialBasis(RegularityBasis, metaclass=CachedClass):
         if (d >= 0) and (d % 2 == 0):
             J = arg_radial_basis.operator_matrix('Z', ell, regtotal_arg, size=Nmat)
             A, B = clenshaw.jacobi_recursion(N0, a_ncc, b_ncc, J)
-            f0 = dedalus_sphere.zernike.polynomials(3, 1, a_ncc, regtotal_ncc, 1)[0] * sparse.identity(Nmat)
+            f0 = dedalus_sphere.zernike.polynomials(3, 1, a_ncc, regtotal_ncc, 1)[0].astype(np.float64) * sparse.identity(Nmat)
             radial_factor = arg_radial_basis.radius_multiplication_matrix(ell, regtotal_arg, diff_regtotal, d, size=Nmat)
             conversion = arg_radial_basis.conversion_matrix(ell, regtotal_out, dk, size=Nmat)
             prefactor = conversion @ radial_factor
@@ -4903,7 +4903,7 @@ class IntegrateDisk(operators.Integrate, IntegrateSpinBasis):
             N = basis.shape[1]
             z0, w0 = dedalus_sphere.zernike.quadrature(2, N, k=0)
             Qk = dedalus_sphere.zernike.polynomials(2, n_size, basis.alpha+basis.k, abs(m), z0)
-            matrix = (w0[None, :] @ Qk.T).astype(basis.dtype)
+            matrix = (w0[None, :] @ Qk.T).astype(np.float64)
             matrix *= basis.radius**2
             matrix *= 2 * np.pi # Fourier contribution
         else:
@@ -4925,8 +4925,8 @@ class IntegrateAnnulus(operators.Integrate, IntegrateSpinBasis):
             z0, w0 = dedalus_sphere.jacobi.quadrature(N, a=0, b=0)
             r0 = basis.dR / 2 * (z0 + basis.rho)
             Qk = dedalus_sphere.jacobi.polynomials(n_size, basis.alpha[0]+basis.k, basis.alpha[1]+basis.k, z0)
-            w0_geom = r0 * w0 * (r0 / basis.dR)**(-basis.k)
-            matrix = (w0_geom[None, :] @ Qk.T).astype(basis.dtype)
+            w0_geom = r0 * w0 * (r0.astype(np.float64) / basis.dR)**(-basis.k) # TODO: xprec does not yet support power
+            matrix = (w0_geom[None, :] @ Qk.T).astype(np.float64)
             matrix *= basis.dR / 2
             matrix *= 2 * np.pi # Fourier contribution
         else:
@@ -4992,7 +4992,7 @@ class IntegrateBall(operators.Integrate, IntegrateSpherical):
             N = basis.shape[2]
             z0, w0 = dedalus_sphere.zernike.quadrature(3, N, k=0)
             Qk = dedalus_sphere.zernike.polynomials(3, n_size, basis.alpha+basis.k, ell, z0)
-            matrix = (w0[None, :] @ Qk.T).astype(basis.dtype)
+            matrix = (w0[None, :] @ Qk.T).astype(np.float64)
             matrix *= basis.radius**3
             matrix *= 4 * np.pi / np.sqrt(2) # SWSH contribution
         else:
@@ -5014,8 +5014,8 @@ class IntegrateShell(operators.Integrate, IntegrateSpherical):
             z0, w0 = dedalus_sphere.jacobi.quadrature(N, a=0, b=0)
             r0 = basis.dR / 2 * (z0 + basis.rho)
             Qk = dedalus_sphere.jacobi.polynomials(n_size, basis.alpha[0]+basis.k, basis.alpha[1]+basis.k, z0)
-            w0_geom = r0**2 * w0 * (r0 / basis.dR)**(-basis.k)
-            matrix = (w0_geom[None, :] @ Qk.T).astype(basis.dtype)
+            w0_geom = r0**2 * w0 * (r0.astype(np.float64) / basis.dR)**(-basis.k)  # TODO: xprec does not yet support power
+            matrix = (w0_geom[None, :] @ Qk.T).astype(np.float64)
             matrix *= basis.dR / 2
             matrix *= 4 * np.pi / np.sqrt(2) # SWSH contribution
         else:
@@ -5147,7 +5147,7 @@ class InterpolateColatitude(FutureLockedField, operators.Interpolate):
                 Lmin = max(abs(m), abs(s))
                 interp_m = dedalus_sphere.sphere.harmonics(sphere_basis.Lmax, m, s, z)[None, :]
                 forward_m = forward._forward_SWSH_matrices[m][Lmin-abs(m):]
-                interp_vectors[m] = interp_m @ forward_m
+                interp_vectors[m] = interp_m.astype(np.float64) @ forward_m
             else:
                 interp_vectors[m] = np.zeros((1, Ntheta))
         return interp_vectors
